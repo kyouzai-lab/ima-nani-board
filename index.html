@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>今なにする？ボード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  /* ── 色と線（ほしあつめ スコアボードとそろえる） ── */
+  :root {
+    --bg: #CFEAFF;
+    --dot: rgba(255,255,255,.9);
+    --head: #231942;
+    --ink: #231942;
+    --paper: #ffffff;
+    --ring: #231942;
+    /* 活動の色。赤は「時間オーバー」だけに使うので入れない */
+    --a1: #5BC8F5; --a2: #4ADE9B; --a3: #FFD93D;
+    --a4: #B794F6; --a5: #FF9F1C; --a6: #FF8FCB;
+    --yellow: #FFE45E;
+    --green: #4ADE9B;
+    --red: #E8333A;
+    --red-ink: #D7262E;
+    --red-soft: #FFE3E0;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17153B; --dot: rgba(255,240,170,.55); --head: #FFF6D6; --ring: #FFE45E; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17153B; --dot: rgba(255,240,170,.55); --head: #FFF6D6; --ring: #FFE45E; color-scheme: dark;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { height: 100%; }
+  body {
+    height: 100vh; height: 100dvh; margin: 0;
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(var(--dot) 1.5px, transparent 2px),
+      radial-gradient(var(--dot) 1px, transparent 1.5px);
+    background-size: 90px 90px, 53px 53px;
+    background-position: 0 0, 27px 41px;
+    font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Arial Rounded MT Bold", sans-serif;
+    font-weight: 700;
+    color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  .screen { display: none; height: 100%; }
+  body[data-screen="setup"] #setup,
+  body[data-screen="run"] #run,
+  body[data-screen="done"] #done { display: flex; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .dela { font-family: "Dela Gothic One", "Hiragino Sans", sans-serif; font-weight: 400; }
+  svg.i { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── ボタン ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .4em;
+    min-height: 64px; min-width: 64px; padding: 0 1.1em;
+    font: 800 20px/1.1 "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif;
+    color: #231942; background: #fff;
+    border: 3px solid #231942; border-radius: 999px;
+    box-shadow: 4px 4px 0 #231942;
+    cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+    transition: transform .06s, box-shadow .06s, background-color .15s;
+  }
+  .btn:active:not(:disabled) { transform: translate(3px,3px); box-shadow: 1px 1px 0 #231942; }
+  .btn:focus-visible { outline: 4px solid var(--ring); outline-offset: 3px; }
+  .btn:disabled { opacity: .35; cursor: default; box-shadow: 2px 2px 0 #231942; }
+  .btn.icon { padding: 0; width: 64px; border-radius: 50%; font-size: 26px; }
+  .btn.go { background: var(--green); }
+  .btn.sun { background: var(--yellow); }
+  .btn.danger { background: var(--red); color: #fff; }
+  .btn svg.i { width: 1.05em; height: 1.05em; }
+
+  /* ── 上の見出し ── */
+  .top {
+    flex: none; display: flex; align-items: center; gap: 16px;
+    padding: clamp(10px, 1.8vh, 20px) clamp(14px, 2.4vw, 32px) 0;
+  }
+  .brand {
+    margin: 0; display: flex; align-items: center; gap: .3em;
+    font-family: "Dela Gothic One", "Hiragino Sans", sans-serif; font-weight: 400;
+    font-size: clamp(22px, 3vw, 40px); letter-spacing: .04em; color: var(--head); white-space: nowrap;
+  }
+  .brand .logo { width: 1.1em; height: 1.1em; flex: none; }
+  .top .hint { color: var(--head); opacity: .75; font-size: clamp(13px, 1.3vw, 18px); }
+  .top .tools { margin-left: auto; display: flex; gap: 10px; }
+
+  /* ════════ 1. 準備画面 ════════ */
+  #setup { flex-direction: column; }
+  .setup-main {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: clamp(14px, 2.4vh, 26px) clamp(14px, 2.4vw, 32px) 24px;
+  }
+  .plan {
+    max-width: 1120px; margin: 0 auto;
+    background: #fff; color: #231942;
+    border: 4px solid #231942; border-radius: 30px; box-shadow: 8px 8px 0 #231942;
+    padding: clamp(16px, 2.4vw, 28px);
+  }
+  .plan-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin: 0 0 16px; }
+  .plan-head h2 { margin: 0; font-family: "Dela Gothic One", "Hiragino Sans", sans-serif; font-weight: 400; font-size: clamp(24px, 2.6vw, 34px); letter-spacing: .04em; }
+  .plan-head .count { font: 400 20px/1 "Dela Gothic One", sans-serif; padding: .3em .7em; border: 3px solid #231942; border-radius: 999px; background: var(--yellow); }
+  .plan-head .sub { opacity: .6; font-size: 16px; }
+
+  .acts { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .row {
+    position: relative;
+    display: grid; grid-template-columns: 72px minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "badge name mins moves del";
+    align-items: center; column-gap: 14px; row-gap: 10px;
+    padding: 10px 12px 10px 0;
+    border: 3px solid #231942; border-radius: 22px; background: #fff;
+    overflow: hidden;
+  }
+  .row::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 72px; background: var(--c); border-right: 3px solid #231942; }
+  .row .badge {
+    grid-area: badge; position: relative; justify-self: center;
+    font: 400 34px/1 "Dela Gothic One", sans-serif;
+  }
+  .row.flash { animation: flash .5s ease-out; }
+  @keyframes flash { 0% { background: var(--yellow); } 100% { background: #fff; } }
+  .row .name-wrap { grid-area: name; min-width: 0; }
+  .row input.name {
+    width: 100%; height: 64px; padding: 0 .7em;
+    font: 800 22px/1 "M PLUS Rounded 1c", sans-serif; color: #231942;
+    background: #F4F8FF; border: 3px solid #231942; border-radius: 16px;
+  }
+  .row input.name::placeholder { color: #231942; opacity: .35; }
+  .row input:focus-visible, .len input:focus-visible { outline: 4px solid var(--ring); outline-offset: 2px; }
+  .mins { grid-area: mins; display: flex; align-items: center; gap: 8px; }
+  input.num {
+    width: 84px; height: 64px; text-align: center; padding: 0;
+    font: 400 30px/1 "Dela Gothic One", sans-serif; color: #231942;
+    background: #fff; border: 3px solid #231942; border-radius: 16px;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  input.num::-webkit-outer-spin-button, input.num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .unit { font-size: 20px; margin-right: 2px; }
+  .moves { grid-area: moves; display: flex; gap: 8px; }
+  .row .del { grid-area: del; flex-direction: column; gap: 0; font-size: 22px; }
+  .row .del small { font-size: 12px; margin-top: 1px; }
+
+  .add {
+    width: 100%; margin-top: 14px; min-height: 72px;
+    border-style: dashed; box-shadow: none; background: transparent; font-size: 22px;
+  }
+  .add:active:not(:disabled) { transform: none; box-shadow: none; background: #F4F8FF; }
+  .add:disabled { box-shadow: none; }
+
+  .wl-note {
+    max-width: 1120px; margin: 18px auto 0; padding: 0 6px;
+    display: flex; align-items: center; gap: .5em;
+    color: var(--head); opacity: .85; font-size: 16px;
+  }
+  .wl-note[hidden] { display: none; }
+
+  /* 準備画面の下の帯 */
+  .dock {
+    flex: none; display: flex; align-items: center; gap: clamp(12px, 2vw, 26px);
+    margin: 0 clamp(14px, 2.4vw, 32px) clamp(12px, 2vh, 22px);
+    padding: 12px clamp(14px, 2vw, 24px);
+    background: #fff; color: #231942;
+    border: 4px solid #231942; border-radius: 28px; box-shadow: 6px 6px 0 #231942;
+  }
+  .len { display: flex; align-items: center; gap: 8px; flex: none; }
+  .len .lab { font-size: 17px; line-height: 1.2; margin-right: 4px; }
+  .plan-sum { flex: 1; min-width: 0; }
+  .pv {
+    position: relative; height: 30px; border: 3px solid #231942; border-radius: 999px;
+    background: #F4F8FF; overflow: hidden;
+  }
+  .pv .seg { position: absolute; top: 0; bottom: 0; background: var(--c); border-right: 2px solid #231942; }
+  .pv .overzone {
+    position: absolute; top: 0; bottom: 0; right: 0;
+    background: repeating-linear-gradient(-45deg, rgba(232,51,58,.85) 0 7px, rgba(232,51,58,.35) 7px 14px);
+  }
+  .pv .mark { position: absolute; top: -3px; bottom: -3px; width: 4px; margin-left: -2px; background: #231942; }
+  .sum-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-size: 17px; }
+  .sum-line b { font: 400 1.3em/1 "Dela Gothic One", sans-serif; }
+  .chip-over { padding: .25em .8em; border-radius: 999px; background: var(--red); color: #fff; border: 3px solid #231942; font-weight: 800; }
+  .chip-over[hidden], .chip-ok[hidden] { display: none; }
+  .chip-ok { opacity: .7; }
+  .start { flex: none; min-height: 76px; padding: 0 1.4em; font-size: 26px; box-shadow: 5px 5px 0 #231942; }
+  .start svg.i { fill: currentColor; stroke-width: 2; }
+
+  /* ════════ 2. 授業中の画面 ════════ */
+  #run {
+    flex-direction: column; gap: clamp(8px, 1.6vh, 18px);
+    padding: clamp(8px, 1.6vh, 18px) clamp(12px, 2vw, 28px) clamp(10px, 1.8vh, 20px);
+    --chipF: clamp(14px, min(2.5vh, 2.1vw), 28px);
+  }
+  .run-top { flex: none; display: flex; align-items: center; gap: 12px; min-height: 44px; }
+  .run-top .brand { font-size: clamp(16px, min(2.4vh, 2.2vw), 26px); opacity: .9; }
+  .clock {
+    margin-left: auto; display: flex; align-items: center; gap: .45em;
+    padding: .35em .9em; border-radius: 999px;
+    background: #fff; color: #231942; border: 3px solid #231942; box-shadow: 3px 3px 0 #231942;
+    font-size: clamp(15px, min(2.3vh, 2vw), 24px); white-space: nowrap;
+  }
+  .clock b { font: 400 1.25em/1 "Dela Gothic One", sans-serif; }
+  .clock.past { background: var(--red-soft); }
+  .warn {
+    display: flex; align-items: center; gap: .45em;
+    padding: .4em 1em; border-radius: 999px;
+    background: var(--yellow); color: #231942; border: 3px solid #231942; box-shadow: 3px 3px 0 #231942;
+    font-size: clamp(16px, min(2.8vh, 2.3vw), 30px); font-weight: 800; white-space: nowrap;
+    animation: nudge .5s ease-out;
+  }
+  .warn b { font: 400 1.25em/1 "Dela Gothic One", sans-serif; color: var(--red-ink); }
+  .warn[hidden] { display: none; }
+  .warn svg.i { width: 1.2em; height: 1.2em; }
+  @keyframes nudge { 0%,100% { transform: none; } 25% { transform: rotate(-3deg); } 60% { transform: rotate(2deg); } }
+
+  /* 流れ（上の並び） */
+  .flow {
+    flex: none; list-style: none; margin: 0; padding: .9em 0 0;
+    display: flex; gap: clamp(6px, 1vw, 14px);
+    font-size: var(--chipF);
+  }
+  .chip {
+    position: relative; flex: 1 1 0; min-width: 0;
+    display: flex; align-items: center; gap: .5em;
+    padding: .45em .7em .45em .5em;
+    background: #fff; color: #231942;
+    border: 3px solid #231942; border-radius: 18px; box-shadow: 3px 3px 0 #231942;
+    transition: opacity .3s, transform .3s, background-color .3s;
+  }
+  .chip .cn {
+    flex: none; width: 1.9em; height: 1.9em; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--c); border: 3px solid #231942;
+    font: 400 .95em/1 "Dela Gothic One", sans-serif;
+  }
+  .chip .cn svg.i { width: 1.1em; height: 1.1em; stroke-width: 4; }
+  .chip .cb { min-width: 0; display: flex; flex-direction: column; gap: .12em; }
+  .chip .ct {
+    font-weight: 800; line-height: 1.2;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-all;
+  }
+  .chip .cm { font-size: .78em; opacity: .75; white-space: nowrap; }
+  .chip .cm em { font-style: normal; color: var(--red-ink); opacity: 1; }
+  .chip .cm em.less { color: #1F6FB2; }
+  .chip.done { opacity: .42; box-shadow: none; }
+  .chip.done .cn { background: #fff; }
+  .chip.now { background: var(--c); border-width: 4px; box-shadow: 5px 5px 0 #231942; transform: translateY(-3px); }
+  .chip.now .cn { background: #fff; }
+  .chip.now .cm { opacity: .9; }
+  .chip.now::before {
+    content: "いま"; position: absolute; left: 50%; top: 0; transform: translate(-50%, -62%);
+    padding: .15em .7em; border-radius: 999px;
+    background: #231942; color: #fff; font-size: .72em; font-weight: 800; letter-spacing: .08em;
+    animation: bob 1.4s ease-in-out infinite;
+  }
+  @keyframes bob { 50% { transform: translate(-50%, -78%); } }
+
+  /* 今の活動（大きなカード） */
+  .stage {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+    padding: clamp(12px, 2.2vh, 26px) clamp(12px, 1.8vw, 32px) clamp(12px, 2vh, 24px);
+    background: var(--c); color: #231942;
+    border: 5px solid #231942; border-radius: clamp(24px, 4vh, 40px);
+    box-shadow: 9px 9px 0 #231942;
+    transition: background-color .3s;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: .4em;
+    padding: .3em .9em; border-radius: 999px;
+    background: #fff; border: 3px solid #231942; font-weight: 800; white-space: nowrap;
+  }
+  .pill b { font: 400 1.15em/1 "Dela Gothic One", sans-serif; }
+  .state.paused { background: #231942; color: #fff; animation: blink 1.6s ease-in-out infinite; }
+  .state.over { background: var(--red); color: #fff; }
+  @keyframes blink { 50% { opacity: .55; } }
+  .name-box {
+    flex: none; height: var(--nameH, 15vh);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .act-name {
+    margin: 0; max-width: 100%;
+    font-family: "Dela Gothic One", "Hiragino Sans", sans-serif; font-weight: 400;
+    line-height: 1.1; text-align: center; letter-spacing: .02em;
+    word-break: break-all;
+  }
+  .time-box {
+    flex: 1; min-height: 0; position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .digits {
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Dela Gothic One", "Hiragino Sans", sans-serif; font-weight: 400;
+    line-height: .8; white-space: nowrap; color: #231942;
+    transform: translateY(var(--dy, 0));
+    transition: color .3s;
+  }
+  .digits span { display: inline-block; text-align: center; }
+  .digits .d { width: var(--dw, .64em); }
+  .digits .c { width: var(--cw, .34em); position: relative; top: -.04em; }
+  .digits .p { width: var(--pw, .6em); }
+  .next-line {
+    flex: none; margin-top: clamp(6px, 1.2vh, 14px);
+    display: flex; align-items: center; gap: .6em; min-width: 0;
+    font-size: clamp(15px, min(2.5vh, 2vw), 26px); font-weight: 800;
+  }
+  .next-line .state { margin-left: auto; flex: none; }
+  .next-line .nl { opacity: .7; flex: none; }
+  .next-line .nn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 一時停止中 */
+  .stage.paused .digits { opacity: .45; }
+
+  /* 時間オーバー */
+  .stage.over { background: var(--red-soft); }
+  .stage.over .digits { color: var(--red-ink); }
+
+  /* 授業中の下のボタン */
+  .run-dock {
+    flex: none; display: flex; align-items: center; justify-content: center;
+    gap: clamp(8px, 1.2vw, 16px);
+    --bh: clamp(64px, 9.5vh, 92px);
+  }
+  .run-dock .btn { min-height: var(--bh); font-size: clamp(16px, min(2.8vh, 1.75vw), 30px); padding: 0 .9em; white-space: nowrap; }
+  .run-dock .btn.icon { width: var(--bh); padding: 0; }
+  .run-dock .grp { display: flex; gap: clamp(6px, 1vw, 16px); }
+  .run-dock .sp { flex: 1 1 0; max-width: 5vw; }
+  .run-dock .plus b { font: 400 1.05em/1 "Dela Gothic One", sans-serif; }
+  .run-dock #pause svg.i, .run-dock #next svg.i, .run-dock #prev svg.i { fill: currentColor; stroke-width: 1.5; }
+  .run-dock #pause { min-width: 7.5em; }
+  .run-dock #pause.resume { background: var(--yellow); animation: ring 1.6s ease-in-out infinite; }
+  @keyframes ring { 50% { box-shadow: 4px 4px 0 #231942, 0 0 0 8px rgba(255,228,94,.6); } }
+  .run-dock #next { min-width: 7.5em; font-size: clamp(18px, min(3.1vh, 2vw), 34px); }
+  .run-dock #stop { color: var(--red-ink); }
+
+  /* ════════ 3. おしまい ════════ */
+  #done { align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
+  .done-card {
+    width: min(820px, 100%); max-height: 100%; overflow-y: auto;
+    background: #fff; color: #231942;
+    border: 4px solid #231942; border-radius: 34px; box-shadow: 10px 10px 0 #231942;
+    padding: clamp(20px, 3.4vh, 40px) clamp(18px, 3vw, 40px);
+    text-align: center;
+  }
+  .done-card h2 {
+    margin: 0; font-family: "Dela Gothic One", "Hiragino Sans", sans-serif; font-weight: 400;
+    font-size: clamp(48px, min(11vh, 9vw), 110px); line-height: 1.1; letter-spacing: .06em;
+    display: flex; align-items: center; justify-content: center; gap: .2em;
+  }
+  .done-card h2 .star { width: .7em; height: .7em; }
+  .done-card .msg { margin: .3em 0 1em; font-size: clamp(18px, 2.4vh, 24px); opacity: .75; }
+  .recap { list-style: none; margin: 0 auto; padding: 0; text-align: left; display: grid; gap: 8px; max-width: 640px; }
+  .recap li {
+    display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 12px;
+    padding: 8px 14px; border: 3px solid #231942; border-radius: 16px; font-size: 18px;
+  }
+  .recap .dot { width: 22px; height: 22px; border-radius: 50%; background: var(--c); border: 3px solid #231942; }
+  .recap .rn { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recap .rt { white-space: nowrap; font-size: 16px; }
+  .recap .rt b { font: 400 1.2em/1 "Dela Gothic One", sans-serif; }
+  .recap .rt .pl { opacity: .55; margin-right: .5em; }
+  .recap .rt .long { color: var(--red-ink); }
+  .total { margin: 16px 0 22px; font-size: 18px; }
+  .total b { font: 400 1.3em/1 "Dela Gothic One", sans-serif; }
+  .confetti { position: fixed; top: -60px; width: 44px; height: 44px; pointer-events: none; z-index: 60; animation: fall 2.6s cubic-bezier(.3,.6,.6,1) forwards; }
+  .confetti svg { width: 100%; height: 100%; stroke: #231942; stroke-width: 1.5px; }
+  @keyframes fall { to { transform: translateY(115vh) rotate(var(--r)); } }
+
+  /* ── 確認の窓 ── */
+  .modal {
+    position: fixed; inset: 0; z-index: 40;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    background: rgba(35,25,66,.45);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  .modal[hidden] { display: none; }
+  .modal-card {
+    width: min(560px, 100%);
+    background: #fff; color: #231942;
+    border: 4px solid #231942; border-radius: 30px; box-shadow: 8px 8px 0 #231942;
+    padding: clamp(22px, 3vw, 34px); text-align: center;
+  }
+  .modal-card h2 { margin: 0 0 .4em; font-family: "Dela Gothic One", sans-serif; font-weight: 400; font-size: clamp(26px, 3.4vw, 36px); }
+  .modal-card p { margin: 0 0 1.4em; font-size: 18px; opacity: .75; }
+  .modal-card .acts-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .modal-card .btn { min-width: 9em; font-size: 22px; }
+
+  /* ── 画面の形ごとの調整 ── */
+  @media (max-aspect-ratio: 1/1) {
+    #run { --chipF: clamp(14px, min(2.1vh, 2.6vw), 28px); }
+    .flow { flex-wrap: wrap; }
+    .flow .chip { flex-basis: calc((100% - 2 * clamp(6px, 1vw, 14px)) / 3) !important; flex-grow: 1 !important; }
+    .flow.n4 .chip { flex-basis: calc((100% - clamp(6px, 1vw, 14px)) / 2) !important; }
+    .flow.n1 .chip, .flow.n2 .chip { flex-basis: 0 !important; }
+    .run-dock { flex-wrap: wrap; --bh: clamp(64px, 7vh, 88px); }
+    .run-dock .sp { display: none; }
+  }
+  @media (max-width: 860px) {
+    .row {
+      grid-template-columns: 60px minmax(0,1fr) auto auto;
+      grid-template-areas: "badge name name name" "badge mins moves del";
+    }
+    .row::before { width: 60px; }
+    .dock { flex-wrap: wrap; }
+    .plan-sum { order: 3; flex-basis: 100%; }
+    .start { margin-left: auto; }
+  }
+  @media (max-width: 560px) {
+    .top .hint { display: none; }
+    .row { grid-template-columns: 52px minmax(0,1fr) auto; grid-template-areas: "badge name name" "badge mins mins" "badge moves del"; }
+    .row::before { width: 52px; }
+    .row .del { justify-self: end; }
+    .run-dock { gap: 8px; }
+    .run-dock .grp:nth-of-type(1) { order: 1; }
+    .run-dock .grp:nth-of-type(3) { order: 2; }
+    .run-dock .grp:nth-of-type(2) { order: 3; flex-basis: 100%; justify-content: center; }
+    .run-dock .grp { gap: 8px; }
+    .run-dock .btn { padding: 0 .7em; font-size: 17px; }
+    .run-dock #pause, .run-dock #next { min-width: 0; flex: 1; }
+    .run-dock #prev { min-width: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .confetti { display: none; }
+  }
+</style>
+</head>
+<body data-screen="setup">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="ic-logo" viewBox="0 0 48 48">
+    <circle cx="24" cy="26" r="18" fill="#FFD93D" stroke="#231942" stroke-width="4"/>
+    <rect x="19" y="3" width="10" height="6" rx="2" fill="#231942"/>
+    <path d="M24 26V15" stroke="#231942" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M24 26l7 4" stroke="#231942" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M24 8a18 18 0 0 1 18 18H24z" fill="#fff" opacity=".55"/>
+  </symbol>
+  <symbol id="ic-star" viewBox="0 0 24 24">
+    <path stroke-linejoin="round" d="M12 2.2l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/>
+  </symbol>
+  <symbol id="ic-up" viewBox="0 0 24 24"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></symbol>
+  <symbol id="ic-down" viewBox="0 0 24 24"><path d="M12 5v14M5.5 12.5 12 19l6.5-6.5"/></symbol>
+  <symbol id="ic-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="ic-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="ic-play" viewBox="0 0 24 24"><path stroke-linejoin="round" d="M7 4.5v15l12.5-7.5z"/></symbol>
+  <symbol id="ic-pause" viewBox="0 0 24 24"><rect x="5.5" y="4.5" width="4.5" height="15" rx="1.2"/><rect x="14" y="4.5" width="4.5" height="15" rx="1.2"/></symbol>
+  <symbol id="ic-skip" viewBox="0 0 24 24"><path stroke-linejoin="round" d="M3.5 5v14l8-7zM12 5v14l8-7z"/></symbol>
+  <symbol id="ic-prev" viewBox="0 0 24 24"><path stroke-linejoin="round" d="M20.5 5v14l-8-7zM12 5v14l-8-7z"/></symbol>
+  <symbol id="ic-full" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
+  <symbol id="ic-unfull" viewBox="0 0 24 24"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></symbol>
+  <symbol id="ic-alert" viewBox="0 0 24 24"><path fill="#fff" d="M12 3 2.5 20h19z"/><path d="M12 10v4.5M12 17.4v.1"/></symbol>
+  <symbol id="ic-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+</svg>
+
+<!-- ════════ 1. 準備画面 ════════ -->
+<section class="screen" id="setup" aria-label="準備画面">
+  <header class="top">
+    <h1 class="brand"><svg class="logo"><use href="#ic-logo"/></svg>今なにする？ボード</h1>
+    <span class="hint">授業の流れを入れて スタート</span>
+    <div class="tools"><button class="btn fs-btn" type="button" hidden><svg class="i"><use href="#ic-full"/></svg><span>全画面</span></button></div>
+  </header>
+
+  <div class="setup-main">
+    <div class="plan">
+      <div class="plan-head">
+        <h2>授業の流れ</h2>
+        <span class="count" id="act-count">5 / 6</span>
+        <span class="sub">上から順に進みます。名前は10文字くらいまでだと大きく映ります</span>
+      </div>
+      <ol class="acts" id="acts"></ol>
+      <button class="btn add" id="add" type="button">＋ 活動をふやす</button>
+    </div>
+    <p class="wl-note" id="wl-note" hidden><svg class="i"><use href="#ic-moon"/></svg>この端末は画面が暗くなるのを止められません。設定で画面の自動ロックを切ってください。</p>
+  </div>
+
+  <div class="dock">
+    <div class="len" role="group" aria-label="授業の長さ">
+      <span class="lab">授業の<br>長さ</span>
+      <button class="btn icon" id="len-dec" type="button" aria-label="授業の長さを5分へらす">−</button>
+      <input class="num" id="len" type="number" inputmode="numeric" min="5" max="180" aria-label="授業の長さ（分）">
+      <span class="unit">分</span>
+      <button class="btn icon" id="len-inc" type="button" aria-label="授業の長さを5分ふやす">＋</button>
+    </div>
+    <div class="plan-sum">
+      <div class="pv" id="pv" aria-hidden="true"></div>
+      <div class="sum-line">
+        <span>予定の合計 <b id="sum">40</b>分</span>
+        <span class="chip-over" id="sum-over" hidden>予定が3分オーバー</span>
+        <span class="chip-ok" id="sum-ok">あと5分 よゆう</span>
+      </div>
+    </div>
+    <button class="btn go start" id="start" type="button"><svg class="i"><use href="#ic-play"/></svg>スタート</button>
+  </div>
+</section>
+
+<!-- ════════ 2. 授業中の画面 ════════ -->
+<section class="screen" id="run" aria-label="授業中の画面">
+  <header class="run-top">
+    <div class="brand"><svg class="logo"><use href="#ic-logo"/></svg>今なにする？</div>
+    <div class="clock" id="clock">授業おわりまで <b id="clock-min">45</b>分</div>
+    <div class="warn" id="warn" role="status" hidden><svg class="i"><use href="#ic-alert"/></svg><span>このままだと <b id="warn-min">3</b>分オーバー</span></div>
+  </header>
+
+  <ol class="flow" id="flow" aria-label="授業の流れ"></ol>
+
+  <main class="stage" id="stage">
+    <div class="name-box" id="name-box"><h2 class="act-name" id="act-name" aria-live="polite"></h2></div>
+    <div class="time-box" id="time-box"><div class="digits" id="digits" role="timer" aria-label="残り時間"></div></div>
+    <div class="next-line" id="next-line"><span class="pill"><b id="step-no">1</b> / <span id="step-all">5</span></span><span class="nl">つぎ</span><span class="nn" id="next-name"></span><span class="pill state" id="state">のこり</span></div>
+  </main>
+
+  <nav class="run-dock" aria-label="操作">
+    <div class="grp">
+      <button class="btn plus" id="minus1" type="button" aria-label="今の活動を1分へらす">−<b>1</b>分</button>
+      <button class="btn plus" id="plus1" type="button" aria-label="今の活動を1分のばす">＋<b>1</b>分</button>
+      <button class="btn plus" id="plus3" type="button" aria-label="今の活動を3分のばす">＋<b>3</b>分</button>
+    </div>
+    <span class="sp"></span>
+    <div class="grp">
+      <button class="btn" id="prev" type="button" aria-label="ひとつ前の活動にもどる"><svg class="i"><use href="#ic-prev"/></svg><span>前へ</span></button>
+      <button class="btn" id="pause" type="button"><svg class="i"><use href="#ic-pause"/></svg><span>一時停止</span></button>
+      <button class="btn go" id="next" type="button"><span>次へ</span><svg class="i"><use href="#ic-skip"/></svg></button>
+    </div>
+    <span class="sp"></span>
+    <div class="grp">
+      <button class="btn" id="stop" type="button">おわる</button>
+      <button class="btn icon fs-btn" type="button" aria-label="全画面" hidden><svg class="i"><use href="#ic-full"/></svg></button>
+    </div>
+  </nav>
+</section>
+
+<!-- ════════ 3. おしまい ════════ -->
+<section class="screen" id="done" aria-label="おしまい">
+  <div class="done-card">
+    <h2><svg class="star" style="fill:#FFD93D;stroke:#231942;stroke-width:1.6px"><use href="#ic-star"/></svg>おしまい<svg class="star" style="fill:#FFD93D;stroke:#231942;stroke-width:1.6px"><use href="#ic-star"/></svg></h2>
+    <p class="msg">ぜんぶの活動が おわりました</p>
+    <ol class="recap" id="recap"></ol>
+    <p class="total" id="total"></p>
+    <button class="btn go" id="back" type="button" style="min-height:72px;font-size:22px;padding:0 1.6em">準備画面にもどる</button>
+  </div>
+</section>
+
+<!-- 確認の窓 -->
+<div class="modal" id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title" hidden>
+  <div class="modal-card">
+    <h2 id="confirm-title">授業をおわりますか？</h2>
+    <p>準備画面にもどります。今の時間は消えます。</p>
+    <div class="acts-row">
+      <button class="btn" id="c-no" type="button">つづける</button>
+      <button class="btn danger" id="c-yes" type="button">おわる</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var KEY = 'ima-nani-board:v1';
+  var MAX_ACTS = 6, MIN_MIN = 1, MAX_MIN = 60, MIN_LEN = 5, MAX_LEN = 180;
+  var NAME_MAX = 20;
+  var MIN = 60000;
+
+  // ════════ 記録（活動名・分数・授業の長さだけ） ════════
+  var DEFAULT = { len: 45, acts: [
+    { name: 'めあてをたしかめる', min: 5 },
+    { name: 'ひとりで考える', min: 10 },
+    { name: 'ペアで話す', min: 5 },
+    { name: '全体で発表', min: 15 },
+    { name: 'ふりかえり', min: 5 }
+  ] };
+  function clampInt(v, lo, hi) { v = Math.round(Number(v)); return isFinite(v) ? Math.min(hi, Math.max(lo, v)) : lo; }
+  function loadPlan() {
+    var src = DEFAULT;
+    try {
+      var v = JSON.parse(localStorage.getItem(KEY));
+      if (v && Array.isArray(v.acts) && v.acts.length >= 1) src = v;
+    } catch (e) {}
+    var acts = src.acts.slice(0, MAX_ACTS).map(function (a, i) {
+      return {
+        name: (a && typeof a.name === 'string') ? a.name.slice(0, NAME_MAX) : '',
+        min: clampInt(a && a.min, MIN_MIN, MAX_MIN),
+        col: i + 1 // 色は画面の中だけ（保存しない）
+      };
+    });
+    return { len: clampInt(src.len || 45, MIN_LEN, MAX_LEN), acts: acts };
+  }
+  function savePlan() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        len: plan.len,
+        acts: plan.acts.map(function (a) { return { name: a.name, min: a.min }; })
+      }));
+    } catch (e) {}
+  }
+  var plan = loadPlan();
+  function labelOf(a, i) { return a.name.trim() || ('活動' + (i + 1)); }
+  function freeColor() {
+    for (var c = 1; c <= 6; c++) if (!plan.acts.some(function (a) { return a.col === c; })) return c;
+    return 1;
+  }
+
+  // ════════ 1. 準備画面 ════════
+  var actsEl = $('acts');
+  function buildRows(focusSel) {
+    actsEl.innerHTML = '';
+    var n = plan.acts.length;
+    plan.acts.forEach(function (a, i) {
+      var no = i + 1;
+      var li = document.createElement('li');
+      li.className = 'row';
+      li.style.setProperty('--c', 'var(--a' + a.col + ')');
+      li.dataset.i = i;
+      li.innerHTML =
+        '<span class="badge" aria-hidden="true">' + no + '</span>' +
+        '<label class="name-wrap"><span class="sr">活動' + no + 'の名前</span>' +
+          '<input class="name" type="text" maxlength="' + NAME_MAX + '" enterkeyhint="done" autocomplete="off" placeholder="活動' + no + '"></label>' +
+        '<div class="mins" role="group" aria-label="活動' + no + 'の分数">' +
+          '<button class="btn icon" type="button" data-act="dec" aria-label="活動' + no + 'を1分へらす">−</button>' +
+          '<input class="num" type="number" inputmode="numeric" min="1" max="60" aria-label="活動' + no + 'の分数">' +
+          '<span class="unit">分</span>' +
+          '<button class="btn icon" type="button" data-act="inc" aria-label="活動' + no + 'を1分ふやす">＋</button>' +
+        '</div>' +
+        '<div class="moves">' +
+          '<button class="btn icon" type="button" data-act="up" aria-label="活動' + no + 'を上へ"' + (i === 0 ? ' disabled' : '') + '><svg class="i"><use href="#ic-up"/></svg></button>' +
+          '<button class="btn icon" type="button" data-act="down" aria-label="活動' + no + 'を下へ"' + (i === n - 1 ? ' disabled' : '') + '><svg class="i"><use href="#ic-down"/></svg></button>' +
+        '</div>' +
+        '<button class="btn icon del" type="button" data-act="del" aria-label="この活動をけす"' + (n <= 1 ? ' disabled' : '') + '><svg class="i"><use href="#ic-x"/></svg><small>けす</small></button>';
+      li.querySelector('.name').value = a.name;
+      li.querySelector('.num').value = a.min;
+      actsEl.appendChild(li);
+    });
+    var add = $('add');
+    add.disabled = n >= MAX_ACTS;
+    add.textContent = n >= MAX_ACTS ? '活動は6つまでです' : '＋ 活動をふやす';
+    $('act-count').textContent = n + ' / ' + MAX_ACTS;
+    if (focusSel) {
+      var f = actsEl.querySelector(focusSel);
+      if (f && !f.disabled) f.focus(); else if (f) { var row = f.closest('.row'); var alt = row && row.querySelector('.name'); if (alt) alt.focus({ preventScroll: true }); }
+    }
+    renderSum();
+  }
+  function rowIndex(el) { var li = el.closest('.row'); return li ? +li.dataset.i : -1; }
+  function flashRow(i) {
+    var li = actsEl.children[i];
+    if (li) { li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash'); }
+  }
+
+  actsEl.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-act]');
+    if (!b || b.disabled) return;
+    var i = rowIndex(b), act = b.dataset.act, a = plan.acts[i];
+    if (!a) return;
+    if (act === 'inc' || act === 'dec') {
+      a.min = clampInt(a.min + (act === 'inc' ? 1 : -1), MIN_MIN, MAX_MIN);
+      b.closest('.row').querySelector('.num').value = a.min;
+      savePlan(); renderSum();
+      return;
+    }
+    if (act === 'up' && i > 0) {
+      plan.acts.splice(i - 1, 0, plan.acts.splice(i, 1)[0]);
+      savePlan(); buildRows('.row[data-i="' + (i - 1) + '"] [data-act="up"]'); flashRow(i - 1);
+    } else if (act === 'down' && i < plan.acts.length - 1) {
+      plan.acts.splice(i + 1, 0, plan.acts.splice(i, 1)[0]);
+      savePlan(); buildRows('.row[data-i="' + (i + 1) + '"] [data-act="down"]'); flashRow(i + 1);
+    } else if (act === 'del' && plan.acts.length > 1) {
+      plan.acts.splice(i, 1);
+      savePlan();
+      var k = Math.min(i, plan.acts.length - 1);
+      buildRows('.row[data-i="' + k + '"] [data-act="del"]');
+    }
+  });
+  actsEl.addEventListener('input', function (ev) {
+    var t = ev.target, i = rowIndex(t), a = plan.acts[i];
+    if (!a) return;
+    if (t.classList.contains('name')) { a.name = t.value.slice(0, NAME_MAX); savePlan(); }
+    else if (t.classList.contains('num')) {
+      var v = parseInt(t.value, 10);
+      if (v >= MIN_MIN && v <= MAX_MIN) { a.min = v; savePlan(); renderSum(); }
+    }
+  });
+  actsEl.addEventListener('change', function (ev) {
+    var t = ev.target, a = plan.acts[rowIndex(t)];
+    if (a && t.classList.contains('num')) {
+      if (t.value !== '') a.min = clampInt(t.value, MIN_MIN, MAX_MIN);
+      t.value = a.min; savePlan(); renderSum();
+    }
+  });
+  actsEl.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter' && ev.target.tagName === 'INPUT') { ev.preventDefault(); ev.target.blur(); }
+  });
+  $('add').addEventListener('click', function () {
+    if (plan.acts.length >= MAX_ACTS) return;
+    plan.acts.push({ name: '', min: 5, col: freeColor() });
+    savePlan();
+    var i = plan.acts.length - 1;
+    buildRows('.row[data-i="' + i + '"] .name');
+    flashRow(i);
+    var li = actsEl.children[i]; if (li && li.scrollIntoView) li.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+
+  // 授業の長さ
+  var lenIn = $('len');
+  lenIn.value = plan.len;
+  function setLen(v) { plan.len = clampInt(v, MIN_LEN, MAX_LEN); lenIn.value = plan.len; savePlan(); renderSum(); }
+  $('len-dec').addEventListener('click', function () { setLen(Math.ceil(plan.len / 5) * 5 - 5); });
+  $('len-inc').addEventListener('click', function () { setLen(Math.floor(plan.len / 5) * 5 + 5); });
+  lenIn.addEventListener('input', function () {
+    var v = parseInt(lenIn.value, 10);
+    if (v >= MIN_LEN && v <= MAX_LEN) { plan.len = v; savePlan(); renderSum(); }
+  });
+  lenIn.addEventListener('change', function () { setLen(lenIn.value === '' ? plan.len : lenIn.value); });
+  lenIn.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); lenIn.blur(); } });
+
+  // 合計と予定のバー
+  function renderSum() {
+    var total = plan.acts.reduce(function (s, a) { return s + a.min; }, 0);
+    $('sum').textContent = total;
+    var over = total - plan.len;
+    $('sum-over').hidden = over <= 0;
+    $('sum-over').textContent = '予定が' + over + '分オーバー';
+    $('sum-ok').hidden = over > 0;
+    $('sum-ok').textContent = over === 0 ? 'ぴったり' : 'あと' + (-over) + '分 よゆう';
+    var scale = Math.max(total, plan.len), x = 0, html = '';
+    plan.acts.forEach(function (a) {
+      html += '<span class="seg" style="--c:var(--a' + a.col + ');left:' + (x / scale * 100) + '%;width:' + (a.min / scale * 100) + '%"></span>';
+      x += a.min;
+    });
+    if (over > 0) html += '<span class="overzone" style="width:' + (over / scale * 100) + '%"></span>';
+    html += '<span class="mark" style="left:' + (plan.len / scale * 100) + '%"></span>';
+    $('pv').innerHTML = html;
+  }
+
+  // ════════ 2. 授業中 ════════
+  var run = null, timer = null, wake = null;
+  var stage = $('stage'), digitsEl = $('digits');
+  var lastDigits = '', lastFitKey = '';
+
+  function now() { return Date.now(); }
+  function elapsed(t) { return run.before + (run.since != null ? t - run.since : 0); }
+  function fmt(ms) { var s = Math.max(0, ms) / 1000 | 0; return Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2); }
+  function fmtRemain(ms) { var s = Math.ceil(ms / 1000); return Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2); }
+
+  function startRun() {
+    var t = now();
+    run = {
+      acts: plan.acts.map(function (a, i) {
+        return { label: labelOf(a, i), col: a.col, planMs: a.min * MIN, durMs: a.min * MIN, actual: 0 };
+      }),
+      idx: 0, before: 0, since: t,
+      classStart: t, classEnd: t + plan.len * MIN
+    };
+    show('run');
+    enterActivity();
+    lockOn();
+    clearInterval(timer);
+    timer = setInterval(tick, 250);
+  }
+
+  function enterActivity() {
+    var a = run.acts[run.idx], n = run.acts.length;
+    stage.style.setProperty('--c', 'var(--a' + a.col + ')');
+    $('act-name').textContent = a.label;
+    $('step-no').textContent = run.idx + 1;
+    $('step-all').textContent = n;
+    var nx = run.acts[run.idx + 1];
+    $('next-line').querySelector('.nl').textContent = nx ? 'つぎ' : '';
+    $('next-name').textContent = nx ? nx.label + '（' + Math.round(nx.durMs / MIN) + '分）' : 'これが さいごの活動です';
+    $('next').querySelector('span').textContent = nx ? '次へ' : 'おしまい';
+    $('prev').disabled = run.idx === 0;
+    $('next').setAttribute('aria-label', nx ? '今の活動を終えて、つぎの活動へ' : '最後の活動を終えて、おしまいにする');
+    lastDigits = ''; lastFitKey = '';
+    buildFlow(); fitName(); tick();
+  }
+
+  function buildFlow() {
+    var flow = $('flow'), n = run.acts.length;
+    var total = run.acts.reduce(function (s, a) { return s + a.durMs; }, 0), avg = total / n;
+    flow.className = 'flow n' + n;
+    flow.innerHTML = '';
+    run.acts.forEach(function (a, i) {
+      var li = document.createElement('li');
+      var st = i < run.idx ? 'done' : i === run.idx ? 'now' : 'todo';
+      li.className = 'chip ' + st;
+      li.style.setProperty('--c', 'var(--a' + a.col + ')');
+      li.style.flexGrow = (a.durMs + avg * 0.9) / avg;
+      var mins = Math.round(a.planMs / MIN), extra = Math.round((a.durMs - a.planMs) / MIN);
+      li.innerHTML =
+        '<span class="cn">' + (st === 'done' ? '<svg class="i"><use href="#ic-check"/></svg>' : (i + 1)) + '</span>' +
+        '<span class="cb"><span class="ct"></span><span class="cm">' + mins + '分' + (extra > 0 ? ' <em>+' + extra + '</em>' : extra < 0 ? ' <em class="less">−' + (-extra) + '</em>' : '') + '</span></span>';
+      li.querySelector('.ct').textContent = a.label;
+      li.setAttribute('aria-label', (i + 1) + '番目 ' + a.label + ' ' + (mins + extra) + '分' + (st === 'done' ? ' おわり' : st === 'now' ? ' いまの活動' : ''));
+      if (st === 'now') li.setAttribute('aria-current', 'step');
+      flow.appendChild(li);
+    });
+  }
+
+  function setDigits(str) {
+    if (str === lastDigits) return;
+    lastDigits = str;
+    var html = '';
+    for (var k = 0; k < str.length; k++) {
+      var ch = str[k];
+      html += '<span class="' + (ch === ':' ? 'c' : ch === '+' ? 'p' : 'd') + '">' + ch + '</span>';
+    }
+    digitsEl.innerHTML = html;
+    // 桁の数が変わったときだけ大きさを合わせなおす（活動の長さで決めて、途中で大きさが跳ねないようにする）
+    var a = run.acts[run.idx];
+    var key = str.charAt(0) === '+' ? str.length : Math.max(str.length, fmt(a.durMs).length);
+    if (key !== lastFitKey) { lastFitKey = key; fitTime(); }
+  }
+
+  function tick() {
+    if (!run) return;
+    var t = now(), a = run.acts[run.idx];
+    var rem = a.durMs - elapsed(t);
+    var over = rem <= 0, paused = run.since == null;
+
+    setDigits(over ? '+' + fmt(-rem) : fmtRemain(rem));
+    digitsEl.setAttribute('aria-label', over ? '時間オーバー ' + fmt(-rem) : '残り ' + fmtRemain(rem));
+    stage.classList.toggle('over', over);
+    stage.classList.toggle('paused', paused);
+    $('minus1').disabled = over;
+    var st = $('state');
+    st.className = 'pill state' + (paused ? ' paused' : over ? ' over' : '');
+    st.textContent = paused ? '一時停止中' : over ? 'じかんオーバー' : 'のこり';
+
+    // 授業の終わり
+    var classRem = run.classEnd - t;
+    var restMs = 0;
+    for (var k = run.idx + 1; k < run.acts.length; k++) restMs += run.acts[k].durMs;
+    var diff = Math.max(0, rem) + restMs - classRem;
+    var warn = $('warn');
+    if (diff >= 1000) {
+      $('warn-min').textContent = Math.ceil(diff / MIN);
+      if (warn.hidden) warn.hidden = false;
+    } else warn.hidden = true;
+    var clock = $('clock');
+    if (classRem > 0) {
+      clock.classList.remove('past');
+      clock.innerHTML = '授業おわりまで <b>' + Math.ceil(classRem / MIN) + '</b>分';
+    } else {
+      clock.classList.add('past');
+      clock.innerHTML = '授業の時間を <b>' + fmt(-classRem) + '</b> すぎています';
+    }
+  }
+
+  function extend(m) {
+    if (!run) return;
+    var a = run.acts[run.idx];
+    // へらすときは、残りが0より下にならないところまで（0になったら超過を数えはじめる）
+    a.durMs = m < 0 ? Math.max(elapsed(now()), a.durMs + m * MIN) : a.durMs + m * MIN;
+    lastFitKey = '';
+    buildFlow(); tick();
+    var nx = run.acts[run.idx + 1];
+    if (nx) $('next-name').textContent = nx.label + '（' + Math.round(nx.durMs / MIN) + '分）';
+  }
+  function togglePause() {
+    if (!run) return;
+    var t = now();
+    if (run.since == null) run.since = t;
+    else { run.before += t - run.since; run.since = null; }
+    var p = $('pause'), paused = run.since == null;
+    p.classList.toggle('resume', paused);
+    p.innerHTML = paused ? '<svg class="i"><use href="#ic-play"/></svg><span>再開</span>' : '<svg class="i"><use href="#ic-pause"/></svg><span>一時停止</span>';
+    tick();
+  }
+  function setPausedButton() {
+    var p = $('pause');
+    p.classList.remove('resume');
+    p.innerHTML = '<svg class="i"><use href="#ic-pause"/></svg><span>一時停止</span>';
+  }
+  function next() {
+    if (!run) return;
+    var t = now();
+    run.acts[run.idx].actual = elapsed(t);
+    if (run.idx >= run.acts.length - 1) { finish(t); return; }
+    run.idx++;
+    run.before = 0; run.since = t;          // つぎの活動はすぐに動き出す（一時停止中でも）
+    setPausedButton();
+    enterActivity();
+  }
+  // ひとつ前へ：前の活動を、離れたときの続きから動かす（今の活動は「まだ」にもどる）
+  function prev() {
+    if (!run || run.idx === 0) return;
+    var t = now();
+    run.acts[run.idx].actual = 0;
+    run.idx--;
+    run.before = run.acts[run.idx].actual; run.since = t;
+    setPausedButton();
+    enterActivity();
+  }
+  function stopTimer() { clearInterval(timer); timer = null; lockOff(); }
+  function finish(t) {
+    stopTimer();
+    var rec = $('recap'); rec.innerHTML = '';
+    run.acts.forEach(function (a) {
+      var li = document.createElement('li');
+      li.style.setProperty('--c', 'var(--a' + a.col + ')');
+      var longer = a.actual > a.planMs + 30000;
+      li.innerHTML = '<span class="dot"></span><span class="rn"></span>' +
+        '<span class="rt"><span class="pl">予定 ' + Math.round(a.planMs / MIN) + '分</span>じっさい <b class="' + (longer ? 'long' : '') + '">' + fmt(a.actual) + '</b></span>';
+      li.querySelector('.rn').textContent = a.label;
+      rec.appendChild(li);
+    });
+    $('total').innerHTML = '授業の時間 <b>' + fmt(t - run.classStart) + '</b>（予定 ' + plan.len + '分）';
+    run = null;
+    show('done');
+    confetti();
+    $('back').focus();
+  }
+  function backToSetup() {
+    stopTimer(); run = null; setPausedButton();
+    show('setup');
+  }
+
+  $('minus1').addEventListener('click', function () { extend(-1); });
+  $('plus1').addEventListener('click', function () { extend(1); });
+  $('plus3').addEventListener('click', function () { extend(3); });
+  $('pause').addEventListener('click', togglePause);
+  $('next').addEventListener('click', next);
+  $('prev').addEventListener('click', prev);
+  $('start').addEventListener('click', function () {
+    // 入力中の数字を確定してからスタート
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    startRun();
+  });
+  $('back').addEventListener('click', backToSetup);
+
+  // おわる（確認）
+  var modal = $('confirm');
+  $('stop').addEventListener('click', function () { modal.hidden = false; $('c-no').focus(); });
+  $('c-no').addEventListener('click', function () { modal.hidden = true; $('stop').focus(); });
+  $('c-yes').addEventListener('click', function () { modal.hidden = true; backToSetup(); });
+  modal.addEventListener('click', function (ev) { if (ev.target === modal) modal.hidden = true; });
+
+  // パソコンのキー：スペース＝一時停止/再開、→＝次へ、←＝前へ
+  document.addEventListener('keydown', function (ev) {
+    if (!modal.hidden) { if (ev.key === 'Escape') { modal.hidden = true; } return; }
+    if (!run || document.body.dataset.screen !== 'run') return;
+    var ae = document.activeElement;
+    if (ae && ae !== document.body && (ae.tagName === 'BUTTON' || ae.tagName === 'INPUT')) return;
+    if (ev.key === ' ') { ev.preventDefault(); togglePause(); }
+    else if (ev.key === 'ArrowRight') { ev.preventDefault(); next(); }
+    else if (ev.key === 'ArrowLeft') { ev.preventDefault(); prev(); }
+  });
+
+  // ════════ 大きさを画面に合わせる ════════
+  var glyphH = 0.72;
+  function measureFont() {
+    // Dela Gothic の数字の幅をはかって、桁がゆれないように1文字ずつの幅を決める
+    try {
+      var c = document.createElement('canvas').getContext('2d');
+      c.font = '100px "Dela Gothic One"';
+      // 字の「墨」の幅（左右の余白をのぞいた幅）で決める。少しだけすき間をあける
+      var ink = function (ch) { var m = c.measureText(ch); return (m.actualBoundingBoxLeft + m.actualBoundingBoxRight) || m.width; };
+      var w = 0;
+      for (var d = 0; d <= 9; d++) w = Math.max(w, ink(String(d)));
+      if (w > 20) {
+        document.documentElement.style.setProperty('--dw', (w / 100 + 0.035).toFixed(3) + 'em');
+        document.documentElement.style.setProperty('--cw', (ink(':') / 100 + 0.06).toFixed(3) + 'em');
+        document.documentElement.style.setProperty('--pw', (ink('+') / 100 + 0.08).toFixed(3) + 'em');
+      }
+      // 数字の墨の高さと、行の中でのずれ（字体の上下の余白で数字が下に寄るのを、まん中へもどす）
+      var z = c.measureText('0');
+      if (z.actualBoundingBoxAscent > 20) {
+        glyphH = (z.actualBoundingBoxAscent + z.actualBoundingBoxDescent) / 100;
+        var fA = z.fontBoundingBoxAscent, fD = z.fontBoundingBoxDescent;
+        if (fA > 0) {
+          var dy = ((fA - fD) / 2 - (z.actualBoundingBoxAscent - z.actualBoundingBoxDescent) / 2) / 100;
+          document.documentElement.style.setProperty('--dy', (-dy).toFixed(3) + 'em');
+        }
+      }
+    } catch (e) {}
+  }
+  function emWidth(str) {
+    var cs = getComputedStyle(document.documentElement);
+    var dw = parseFloat(cs.getPropertyValue('--dw')) || .64, cw = parseFloat(cs.getPropertyValue('--cw')) || .34, pw = parseFloat(cs.getPropertyValue('--pw')) || .6;
+    var w = 0;
+    for (var k = 0; k < str.length; k++) w += str[k] === ':' ? cw : str[k] === '+' ? pw : dw;
+    return w;
+  }
+  function fitTime() {
+    if (!run) return;
+    var box = $('time-box');
+    var H = box.clientHeight, W = box.clientWidth;
+    if (!H || !W) return;
+    var a = run.acts[run.idx];
+    var sample = lastDigits.charAt(0) === '+' ? lastDigits : (lastDigits.length >= fmt(a.durMs).length ? lastDigits : fmt(a.durMs));
+    var size = Math.min(H / (glyphH * 1.1), W * 0.995 / emWidth(sample), window.innerHeight * 0.46);
+    digitsEl.style.fontSize = Math.max(24, Math.floor(size)) + 'px';
+  }
+  function fitName() {
+    var box = $('name-box'), el = $('act-name');
+    var H = box.clientHeight, W = box.clientWidth;
+    if (!H || !W) return;
+    var lo = 16, hi = Math.min(H / 1.1, window.innerHeight * 0.15);
+    el.style.fontSize = hi + 'px';
+    if (el.scrollHeight <= H && el.scrollWidth <= W) return;
+    for (var k = 0; k < 14; k++) {
+      var mid = (lo + hi) / 2;
+      el.style.fontSize = mid + 'px';
+      if (el.scrollHeight <= H && el.scrollWidth <= W) lo = mid; else hi = mid;
+    }
+    el.style.fontSize = Math.floor(lo) + 'px';
+  }
+  function layoutRun() {
+    var vh = window.innerHeight, vw = window.innerWidth;
+    // 活動名の場所の高さ：横長は1行ぶん、たて長は2行まで入る高さ
+    var nameH = vw / vh < 1 ? Math.min(vh * 0.2, vw * (vw < 560 ? 0.2 : 0.26)) : vh * 0.165;
+    stage.style.setProperty('--nameH', Math.round(nameH) + 'px');
+    fitName(); lastFitKey = ''; fitTime();
+  }
+  var rafId = 0;
+  function onResize() { cancelAnimationFrame(rafId); rafId = requestAnimationFrame(function () { if (run) layoutRun(); }); }
+  window.addEventListener('resize', onResize);
+  // 画面を回したときなど、枠の大きさが変わったら必ず合わせなおす
+  if (window.ResizeObserver) {
+    var lastBox = '';
+    new ResizeObserver(function () {
+      var b = $('time-box'), k = b.clientWidth + 'x' + b.clientHeight;
+      if (k !== lastBox) { lastBox = k; onResize(); }
+    }).observe($('time-box'));
+  }
+  window.addEventListener('orientationchange', onResize);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { measureFont(); onResize(); });
+  measureFont();
+
+  // ════════ 画面の切りかえ ════════
+  function show(name) {
+    document.body.dataset.screen = name;
+    if (name === 'run') layoutRun();
+    if (name === 'setup') { renderSum(); }
+  }
+
+  // ════════ 映しっぱなしの工夫 ════════
+  var hasWake = 'wakeLock' in navigator;
+  $('wl-note').hidden = hasWake;
+  function lockOn() {
+    if (!hasWake || wake) return;
+    navigator.wakeLock.request('screen').then(function (s) {
+      wake = s;
+      s.addEventListener('release', function () { if (wake === s) wake = null; });
+      if (!run) lockOff();
+    }).catch(function () { wake = null; });
+  }
+  function lockOff() { if (wake) { var s = wake; wake = null; s.release().catch(function () {}); } }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && run) { lockOn(); tick(); }
+  });
+  window.addEventListener('beforeunload', function (ev) {
+    if (run) { ev.preventDefault(); ev.returnValue = ''; }
+  });
+
+  // 全画面
+  var de = document.documentElement;
+  var fsOk = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  var fsEl = function () { return document.fullscreenElement || document.webkitFullscreenElement; };
+  var fsBtns = Array.prototype.slice.call(document.querySelectorAll('.fs-btn'));
+  function renderFs() {
+    var on = !!fsEl();
+    fsBtns.forEach(function (b) {
+      b.querySelector('use').setAttribute('href', on ? '#ic-unfull' : '#ic-full');
+      var s = b.querySelector('span'); if (s) s.textContent = on ? '全画面をやめる' : '全画面';
+      b.setAttribute('aria-label', on ? '全画面をやめる' : '全画面');
+    });
+  }
+  if (fsOk) {
+    fsBtns.forEach(function (b) {
+      b.hidden = false;
+      b.addEventListener('click', function () {
+        try {
+          if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+          else (de.requestFullscreen || de.webkitRequestFullscreen).call(de);
+        } catch (e) {}
+      });
+    });
+    document.addEventListener('fullscreenchange', renderFs);
+    document.addEventListener('webkitfullscreenchange', renderFs);
+  }
+
+  // おしまいの星
+  function confetti() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var cols = ['#FFD93D', '#5BC8F5', '#4ADE9B', '#FF8FCB', '#B794F6', '#FF9F1C'];
+    for (var k = 0; k < 22; k++) {
+      var s = document.createElement('div');
+      s.className = 'confetti';
+      s.style.left = (Math.random() * 96) + 'vw';
+      s.style.animationDelay = (Math.random() * 0.9) + 's';
+      s.style.setProperty('--r', (Math.random() * 540 - 270) + 'deg');
+      s.style.width = s.style.height = (26 + Math.random() * 30 | 0) + 'px';
+      s.innerHTML = '<svg style="fill:' + cols[k % cols.length] + '"><use href="#ic-star"/></svg>';
+      document.body.appendChild(s);
+      setTimeout(function (el) { el.remove(); }, 3800, s);
+    }
+  }
+
+  buildRows();
+  show('setup');
+})();
+</script>
+</body>
+</html>
